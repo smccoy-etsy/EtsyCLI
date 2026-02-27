@@ -1,0 +1,69 @@
+#!/bin/zsh
+
+#Text coloring functions
+function color {
+    if tty -s
+    then
+        tput setaf $2
+        echo "$1"
+        tput sgr0
+        return
+    fi
+    
+    echo "$1"
+}
+
+function red {
+    color "$1" 1
+}
+
+function yellow {
+    color "$1" 3
+}
+
+function green {
+    color "$1" 2
+}
+
+
+#Prompt to continue
+function confirm {
+    yellow "Press y to continue, any other key to exit"
+    tput bel
+
+    read -q "variable?"
+    echo ""
+    if [[ $variable != "y" && $variable != "Y" ]]
+    then
+        red "Exiting"
+        say "Done"
+        exit 0
+    fi
+    green "Continuing"
+}
+
+
+#exit script immediately if any command returns a non-zero exit code (indicating an error)
+set -o errexit
+
+# "Theirs" means the branch being rebased or merged. This is typically a feature branch being merged into or rebased onto an ongoing branch.
+# Since this is the typical use case for git, we consider "theirs" to be the default.
+function resolveUsingTheirs {
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs sed -i '' -e '/<<<<<<</,/=======/d'
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs sed -i '' -e '/^>>>>>>>/d'
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs git stage
+}
+
+# "Ours" means the branch you're rebasing *onto* or merging *into*. Using "Ours" is a bad code smell.
+# Merges and rebases should almost always be from a feature branch to an ongoing branch, so if you find yourself wanting to resolve in favor
+# of the *ongoing* instead of the new *feature*, you should stop and ask if you'd be better served by first merging the *ongoing* branch into the 
+# the *feature* branch and resolving the conflicts on the feature branch first.
+function resolveUsingOurs {
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs sed -i '' -e '/=======/,/>>>>>>>/d'
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs sed -i '' -e '/^<<<<<<</d'
+    git status -s | grep -e ^UU -e ^AA | awk '{print $2}' | xargs git stage
+}
+
+resolveUsingTheirs
+
+

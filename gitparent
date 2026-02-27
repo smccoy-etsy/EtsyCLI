@@ -1,0 +1,35 @@
+#!/bin/zsh
+
+#Get branches it could have been branched from
+develBranches=($(git config scripts.develop))
+develBranchesLength=${#develBranches}
+
+#Validate
+if [ $develBranchesLength = 0 ]; then 
+	echo "develBranches not set! Use git config scripts.develop"
+	exit 1
+fi
+
+if [ $develBranchesLength = 1 ]; then 
+	echo $develBranches
+	exit 0
+fi
+
+#Get current branch
+currentBranch=$(git rev-parse --abbrev-ref HEAD)
+
+#Get the merge-base for this branch with the devel branches,
+#Then get the date that the branching occurred from that branch. 
+#Whichever one is more recent is the one that we branched from.
+lines=""
+
+for develBranch in $develBranches; do
+	mergeBase=$(git merge-base $currentBranch $develBranch)
+	mergeBaseDate=$(git show -s --format=%at $mergeBase)
+
+	lines="$lines$mergeBaseDate $develBranch\n"
+done
+
+#Sort the lines by the branch date from the merge-base, get the top 1, and print the branch
+result=$(echo $lines | sort -r | head -1 | awk {'print $2'})
+echo $result

@@ -1,0 +1,99 @@
+#!/usr/bin/swift
+
+import Foundation
+
+
+// MARK: Utility Funcs
+@discardableResult
+func shell(_ command: String) throws -> String {
+    let task = Process()
+    let pipe = Pipe()
+    
+    task.standardOutput = pipe
+    task.standardError = pipe
+    task.arguments = ["-c", command]
+    task.executableURL = URL(fileURLWithPath: "/bin/zsh") //<--updated
+    task.standardInput = nil
+
+    try task.run() //<--updated
+    
+    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+    let output = String(data: data, encoding: .utf8)!
+    
+    return output
+}
+
+func stringPrompt(_ message: String) -> String {
+	print(message + ": ", terminator: "") // The terminator "" keeps the cursor on the same line as the prompt
+	return readLine() ?? ""
+}
+
+func boolPrompt(_ message: String) -> Bool {
+	let response = stringPrompt(message)
+
+	return ["y", "Y"].contains(response)
+}
+
+func switchBackTo(branch: String) throws {
+	if branch != "main" {
+		print("Switching back to \(branch)")
+		try shell("git checkout \(branch)")
+	}
+}
+
+// MARK: Script
+do {
+	
+	// Determine current branch:
+	let currentBranch = try shell("git branch").split(separator:"\n").filter {
+		$0.contains("*")
+	}.map {
+		// Remove the "* " prefix on the current branch
+		String($0.dropFirst(2))
+	}.first
+
+	guard let currentBranch else {
+		print("Could not determine current branch!")
+		exit(1)
+	}
+
+	// Switch to main if neccessary
+	if currentBranch != "main" {
+		print("currentBranch: \(currentBranch), switching to main")
+		try shell("git checkout main")
+	}
+
+	print("Pruning branches (removes any remote-tracking references that correspond to branches that have been deleted on the remote)...")
+	try shell("git fetch --prune origin")
+
+	let branches = try shell("git branch -vv | grep gone | grep -v \"*\" | awk '{print $1}'")
+		.split(whereSeparator: \.isNewline)
+		.map { String($0) }
+
+	guard branches.count > 0 else {
+		print("No branches to clean up")
+
+		try switchBackTo(branch: currentBranch)
+
+		try shell("say done")
+		exit(0)
+	}
+
+	for branch in branches {
+		if boolPrompt("Delete branch: \(branch)? ") {
+			print("Deleting...")
+			try shell("git branch -D \(branch)")
+		}
+	}
+
+
+	try switchBackTo(branch: currentBranch)
+
+	print("Done!")
+	try shell("say done")
+
+
+} catch {
+	print("Error: \(error)")
+	exit(1)
+}

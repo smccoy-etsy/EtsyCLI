@@ -1,0 +1,90 @@
+#!/bin/zsh
+
+
+#Text coloring functions
+function color {
+    if tty -s
+    then
+        tput setaf $2
+        echo "$1"
+        tput sgr0
+        return
+    fi
+    
+    echo "$1"
+}
+
+function red {
+    color "$1" 1
+}
+
+function yellow {
+    color "$1" 3
+}
+
+function green {
+    color "$1" 2
+}
+
+
+#Prompt to continue
+function confirm {
+    yellow "Press y to continue, any other key to exit"
+	tput bel
+
+    read -q "variable?"
+    echo ""
+    if [[ $variable != "y" && $variable != "Y" ]]
+    then
+        red "Exiting"
+        say "Done"
+        exit 0
+    fi
+    green "Continuing"
+}
+
+#instead of exiting on errors, run confirm instead
+function handleError {
+    if [ $? -eq 0 ]; then
+      return
+    fi
+
+    confirm
+}
+trap handleError ERR
+
+green "Getting current branch..."
+currentBranch=$(git rev-parse --abbrev-ref HEAD)
+
+green "Current branch is $currentBranch, determining ancestor..."
+branchedFrom=$(gitparent);
+
+green "Branched from $branchedFrom. Switching branches..."
+git checkout $branchedFrom
+sleep 1
+
+green "Pulling..."
+git pull
+
+green "Switching back to $currentBranch..."
+git checkout $currentBranch
+
+#This sleep seems to prevent some kind of race condition in git
+sleep 1
+
+green "Attempting rebase of $currentBranch onto $branchedFrom..."
+git rebase $branchedFrom
+
+if ! [ $? -eq 0 ] ; then
+	red "Rebase failed! Make appropriate code changes and then use:"
+	red "git rebase --continue"
+	red "Or to abort, use:"
+	red "git rebase --abort"
+	exit 1
+fi
+
+green "Force-push $currentBranch to origin?"
+confirm
+git push -f origin 
+
+green "Done"

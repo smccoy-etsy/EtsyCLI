@@ -1,0 +1,56 @@
+#!/bin/zsh
+
+#Text coloring functions
+function color {
+    if tty -s
+    then
+        tput setaf $2
+        echo "$1"
+        tput sgr0
+        return
+    fi
+    
+    echo "$1"
+}
+
+function green {
+    color "$1" 2
+}
+
+
+develBranches=($(git config scripts.develop))
+protectedBranches=($(git config scripts.protected))
+
+if [ -z "$develBranches" ]; then
+    red "Specify which branches are develop branches using git config. Example:\ngit config scripts.develop devel-4.0 devel-2.9"
+    exit 1
+fi
+
+featureBranches=$(git branch | cut -c 3- | grep -v HEAD)
+
+
+#Remove devel branches from consideration
+for develBranch in $develBranches
+do  
+    featureBranches=$(echo "$featureBranches" | grep -v "$develBranch")
+done
+
+#Remove protected branches from consideration
+for protectedBranch in $protectedBranches
+do  
+    featureBranches=$(echo "$featureBranches" | grep -v "$protectedBranch")
+done
+
+#Convert to array
+IFS=$'\n' featureBranches=($(echo $featureBranches))
+
+
+for featureBranch in $featureBranches
+do
+    git checkout $featureBranch > /dev/null 2>&1
+
+	# If it needs rebasing, print the branch name
+	if [ "$(gitisrebased)" = 'no' ] ; then 
+		green $featureBranch
+	fi
+done

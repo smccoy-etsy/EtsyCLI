@@ -1,0 +1,57 @@
+#!/bin/zsh
+
+
+#Text coloring functions
+function color {
+    if tty -s
+    then
+        tput setaf $2
+        echo "$1"
+        tput sgr0
+        return
+    fi
+    
+    echo "$1"
+}
+
+function red {
+    color "$1" 1
+}
+
+function green {
+    color "$1" 2
+}
+
+green "Fetching and deleting branches no longer on remote..."
+git fetch -p
+
+green "Updating develop branches..."
+gitupdate
+
+
+develBranches=($(git config scripts.develop))
+protectedBranches=($(git config scripts.protected))
+
+if [ -z "$develBranches" ]; then
+    red "Specify which branches are develop branches using git config. Example:\ngit config scripts.develop devel-4.0 devel-2.9"
+    exit 1
+fi
+
+
+branchesFound=""
+
+for develBranch in $develBranches
+do
+    green "Deleting branches fully merged into $develBranch..."
+    branchesFound=$(git branch --merged $develBranch | grep -v HEAD | grep -v $develBranch | grep -v \* | awk '{print $1}')
+
+    #Remove protected branches from list to be deleted
+    for protectedBranch in $protectedBranches
+    do  
+        branchesFound=$(echo "$branchesFound" | grep -v "$protectedBranch")
+    done
+
+    echo $branchesFound | xargs git branch -D
+done
+
+green "Done"

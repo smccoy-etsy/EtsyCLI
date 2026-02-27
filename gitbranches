@@ -1,0 +1,5 @@
+develBranches=($(git config scripts.develop))
+protectedBranches=($(git config scripts.protected))
+
+echo "Develop Branches (git config scripts.develop): $(git config scripts.develop)"
+echo "Protected Branches (git config scripts.protected): $(git config scripts.protected)"

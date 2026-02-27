@@ -1,0 +1,12 @@
+#!/bin/zsh
+
+currentBranch=$(git rev-parse --abbrev-ref HEAD)
+parent=$(gitparent)
+branchPoint=$(git merge-base $currentBranch $parent)
+tipOfParent=$(git rev-parse $parent)
+
+if [ "$branchPoint"  = "$tipOfParent" ] ; then 
+	echo "yes"
+else 
+	echo "no"
+fi

@@ -1,0 +1,74 @@
+#!/bin/zsh
+
+#Text coloring functions
+function color {
+    if tty -s
+    then
+        tput setaf $2
+        echo "$1"
+        tput sgr0
+        return
+    fi
+    
+    echo "$1"
+}
+
+function red {
+    color "$1" 1
+}
+
+function yellow {
+    color "$1" 3
+}
+
+function green {
+    color "$1" 2
+}
+
+
+#Prompt to continue
+function confirm {
+    yellow "Press y to continue, any other key to exit"
+	tput bel
+
+    read -q "variable?"
+    echo ""
+    if [[ $variable != "y" && $variable != "Y" ]]
+    then
+        red "Exiting"
+        exit 0
+    fi
+    green "Continuing"
+}
+
+# Find the highest numbered .xcresult file in the directory
+xcresultFile=$(ls | grep .xcresult | sort | head -1)
+
+green "Extract \"$xcresultFile\" to logs, removing existing contents?"
+confirm
+
+green "Running xcparse..."
+rm -rf ./logs
+xcparse logs "$xcresultFile" ./logs
+
+green "Finding App & UI Test logs..."
+IFS=$'\n'
+logFilePaths=($(find logs/*Test | grep StandardOutputAndStandardError))
+
+outputDir="./logs/uitest_and_app_logs"
+mkdir -p $outputDir
+
+for logFilePath in $logFilePaths; do 
+	yellow "processing: $logFilePath"
+
+	newPath=$(echo $logFilePath | awk '{print $2}' | tr '/' '_')
+	cp "$logFilePath" $outputDir/$newPath
+done
+
+green "Copying all crash logs..."
+find logs/*Test -name "*.ips" -exec cp "{}" ./logs/uitest_and_app_logs \;
+
+green "Done. Results in $outputDir"
+say "Done"
+
+open $outputDir
