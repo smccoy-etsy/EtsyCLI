@@ -1,5 +1,4 @@
 #!/bin/zsh
-setopt ERR_EXIT
 
 #Text coloring functions
 function color {
@@ -42,17 +41,25 @@ function confirm {
     green "Continuing"
 }
 
+green "Checking gcloud status..."
+ETSYWEBCTL_OUTPUT=$(etsywebctl vm list 2>&1)
+if [[ "$ETSYWEBCTL_OUTPUT" == *"gcloud auth login"* ]]; then
+    red "Re-authenticating with gcloud..."
+    gcloud auth login --update-adc
+else
+    green "Logged in!"
+fi
+
+
 green "Gathering VM info..."
 ETSYWEBCTL_OUTPUT=$(etsywebctl vm list | tail -1)
-
-
 VM_NAME=$(echo "$ETSYWEBCTL_OUTPUT" | awk '{print $1}')
 VM_URL=$(echo "$ETSYWEBCTL_OUTPUT" | awk '{print $2}')
 green "Your VM is named $VM_NAME, and located at $VM_URL"
 
 green "Connecting to VPN..."
 osascript -e 'tell application "Viscosity" to connect "Etsy Prod VPN Okta"'
-yellow "Are you connected to the VPN?"
+yellow "Confirm once connected to the VPN:"
 confirm
 
 
@@ -66,4 +73,5 @@ echo ""
 
 green "SSHing to VPN..."
 green "If this hangs, check your VPN connection!"
+
 ssh $VM_URL -t "cd development/Etsyweb/; bash --login"
