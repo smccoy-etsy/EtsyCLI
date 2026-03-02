@@ -43,7 +43,7 @@ function confirm {
 
 green "Checking gcloud status..."
 ETSYWEBCTL_OUTPUT=$(etsywebctl vm list 2>&1)
-if [[ "$ETSYWEBCTL_OUTPUT" == *"gcloud auth login"* ]]; then
+if [[ "$ETSYWEBCTL_OUTPUT" == *"Unauthenticated"* ]]; then
     red "Re-authenticating with gcloud..."
     gcloud auth login --update-adc
 else
