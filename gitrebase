@@ -43,15 +43,8 @@ function confirm {
     green "Continuing"
 }
 
-#instead of exiting on errors, run confirm instead
-function handleError {
-    if [ $? -eq 0 ]; then
-      return
-    fi
-
-    confirm
-}
-trap handleError ERR
+#Bail on any errors
+set -e
 
 green "Getting current branch..."
 currentBranch=$(git rev-parse --abbrev-ref HEAD)

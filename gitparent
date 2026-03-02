@@ -5,11 +5,14 @@ develBranches=($(git config scripts.develop))
 develBranchesLength=${#develBranches}
 
 #Validate
+
+# No devel branches means can't have branched from anywhere
 if [ $develBranchesLength = 0 ]; then 
-	echo "develBranches not set! Use git config scripts.develop"
+	echo "develBranches not set! Use git config scripts.develop" >&2
 	exit 1
 fi
 
+# Only 1 devel branch means it can only have branched from there
 if [ $develBranchesLength = 1 ]; then 
 	echo $develBranches
 	exit 0
