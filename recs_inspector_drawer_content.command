@@ -50,7 +50,7 @@ func printError(_ message: String) {
     fputs(message + "\n", stderr)
 }
 
-@discardableResult // Add to suppress warnings when you don't want/need a result
+@discardableResult 
 func shell(_ command: String) throws -> String {
     let task = Process()
     let pipe = Pipe()
@@ -58,10 +58,10 @@ func shell(_ command: String) throws -> String {
     task.standardOutput = pipe
     task.standardError = pipe
     task.arguments = ["-c", command]
-    task.executableURL = URL(fileURLWithPath: "/bin/zsh") //<--updated
+    task.executableURL = URL(fileURLWithPath: "/bin/zsh")
     task.standardInput = nil
 
-    try task.run() //<--updated
+    try task.run()
     
     let data = pipe.fileHandleForReading.readDataToEndOfFile()
     let output = String(data: data, encoding: .utf8)!
