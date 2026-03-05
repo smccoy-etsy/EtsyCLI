@@ -1,6 +1,0 @@
-#!/bin/zsh
-
-currentBranch=$(git rev-parse --abbrev-ref HEAD)
-parent=$(gitparent)
-hashOfMergeBase=$(git merge-base $currentBranch $parent)
-echo $hashOfMergeBase
