@@ -182,34 +182,58 @@ func promptYesWithTimeout(
 // MARK: funcs
 enum ScriptError: Error {
     case generic(String)
+    case gCloudAuthFailure
     case couldNotGetVMInfo(String)
     case couldNotStartVM
 }
 
+extension String {
+    var looksLikeAnAccessToken: Bool {
 
-func gcloudAuth(attemptNumber: Int = 1) throws {
-
-    if attemptNumber == 2 {
-        printColor("Could not authenticate with gcloud!", .red)
+        let pattern = #"\b[A-Za-z0-9][A-Za-z0-9._-]{40,}\b"#
+        
+        do {
+            let regex = try NSRegularExpression(pattern: pattern)
+            let range = NSRange(self.startIndex..., in: self)
+            return regex.firstMatch(in: self, range: range) != nil
+        } catch {
+            return false
+        }
     }
+}
+
+func gcloudAuth() throws {
 
     // Note: use `gcloud auth revoke` to test logging out
     printColor("Checking gcloud status...")
-    let gcloudAuthResult = try shell("gcloud auth list")
 
-    if gcloudAuthResult.contains("Credentialed Accounts") {
-        printColor("Logged in to gcloud!")
+    var attemptNumber = 1
+    while (attemptNumber < 3) {
+        let gcloudAuthResult = try shell("gcloud auth print-access-token")
+
+        // Does this look like an access token?
+        guard gcloudAuthResult.looksLikeAnAccessToken else {
+            printColor("Re-authenticating with gcloud...", .red)
+            try shell("gcloud auth login --update-adc")    
+            attemptNumber += 1
+            continue
+        }
+
+        printColor("Logged into gcloud")
         return
     }
 
-    printColor("Re-authenticating with gcloud...", .red)
-    try shell("gcloud auth login --update-adc")
-
-    try gcloudAuth(attemptNumber: attemptNumber + 1)
+    throw ScriptError.gCloudAuthFailure
 }
 
 func getVmInfo() throws -> (String, String, Bool) {
     let etsywebctlOutput = try shell("etsywebctl vm list | tail -1")
+
+    guard !etsywebctlOutput.contains("Your gcloud token has been expired or revoked") else {
+        throw ScriptError.couldNotGetVMInfo("Your gcloud token has been expired or revoked")
+    }
+    
+
     let vmInfo = etsywebctlOutput
     .components(separatedBy: CharacterSet.whitespacesAndNewlines)
     .filter { !$0.isEmpty }
