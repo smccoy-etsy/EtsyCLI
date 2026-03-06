@@ -170,15 +170,24 @@ func getVmInfo() throws -> (String, String) {
     let vmInfo = etsywebctlOutput.split(separator: " ").map { String($0) }
 
     guard vmInfo.count >= 2 else {
-        printColor("Could not extract VM info! etsywebctl output: \n\(etsywebctlOutput)")
+        printColor("Could not extract VM info! etsywebctl output: \n\(etsywebctlOutput)", .red)
         exit(1)
     }
 
-    let ret = (vmInfo[0], vmInfo[1])
+    let vmName = vmInfo[0].trimmingCharacters(in: .whitespacesAndNewlines)
+    let vmUrl = vmInfo[1].trimmingCharacters(in: .whitespacesAndNewlines)
 
-    printColor("Your vm is named [\(ret.0)] and located at [\(ret.1)]")
+    // Validate
+    [vmName, vmUrl].forEach {
+        guard $0.count > 0 else {
+            printColor("Could not extract VM info! etsywebctl output: \n\(etsywebctlOutput)", .red)
+            exit(0)
+        }
+    }
 
-    return ret
+    printColor("Your vm is named [\(vmName)] and located at [\(vmUrl)]")
+
+    return (vmName, vmUrl)
 }
 
 func isVPNConnected() throws -> Bool {
