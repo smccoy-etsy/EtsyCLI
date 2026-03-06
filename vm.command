@@ -180,6 +180,13 @@ func promptYesWithTimeout(
 
 
 // MARK: funcs
+enum ScriptError: Error {
+    case generic(String)
+    case couldNotGetVMInfo(String)
+    case couldNotStartVM
+}
+
+
 func gcloudAuth(attemptNumber: Int = 1) throws {
 
     if attemptNumber == 2 {
@@ -201,30 +208,49 @@ func gcloudAuth(attemptNumber: Int = 1) throws {
     try gcloudAuth(attemptNumber: attemptNumber + 1)
 }
 
-func getVmInfo() throws -> (String, String) {
-    printColor("Gathering VM info...")
+func getVmInfo() throws -> (String, String, Bool) {
     let etsywebctlOutput = try shell("etsywebctl vm list | tail -1")
-    let vmInfo = etsywebctlOutput.split(separator: " ").map { String($0) }
+    let vmInfo = etsywebctlOutput
+    .components(separatedBy: CharacterSet.whitespacesAndNewlines)
+    .filter { !$0.isEmpty }
 
-    guard vmInfo.count >= 2 else {
-        printColor("Could not extract VM info! etsywebctl output: \n\(etsywebctlOutput)", .red)
-        exit(1)
+    guard vmInfo.count == 5 else {
+        throw ScriptError.couldNotGetVMInfo("Expected 5 columns, got \(vmInfo.count). etsywebctlOutput: [\(etsywebctlOutput)], array: \(vmInfo)")
     }
 
-    let vmName = vmInfo[0].trimmingCharacters(in: .whitespacesAndNewlines)
-    let vmUrl = vmInfo[1].trimmingCharacters(in: .whitespacesAndNewlines)
+    let vmName = vmInfo[0]
+    let vmUrl = vmInfo[1]
+    let vmRunning = vmInfo[4] == "RUNNING"
 
     // Validate
-    [vmName, vmUrl].forEach {
-        guard $0.count > 0 else {
-            printColor("Could not extract VM info! etsywebctl output: \n\(etsywebctlOutput)", .red)
-            exit(0)
+    for item in [vmName, vmUrl] {
+        guard item.count > 0 else {
+            throw ScriptError.couldNotGetVMInfo(etsywebctlOutput)
         }
     }
 
-    printColor("Your vm is named [\(vmName)] and located at [\(vmUrl)]")
+    return (vmName, vmUrl, vmRunning)
+}
 
-    return (vmName, vmUrl)
+func startVM() throws -> String {
+    printColor("Gathering VM info...")
+    
+    var attemptNumber = 1
+
+    while (attemptNumber < 3) {
+        let (vmName, vmUrl, vmRunning) = try getVmInfo()
+        
+        guard vmRunning else {
+            try shell("etsywebctl vm start \(vmName)")
+            attemptNumber += 1
+            continue
+        }
+
+        printColor("Your vm is running. It is named [\(vmName)] and located at [\(vmUrl)]")
+        return vmUrl
+    }
+
+    throw ScriptError.couldNotStartVM
 }
 
 func isVPNConnected() throws -> Bool {
@@ -240,7 +266,7 @@ func isVPNConnected() throws -> Bool {
 
 
 func waitForVPNConnected(attemptNumber: Int = 1) throws {
-    guard attemptNumber < 20 else {
+    guard attemptNumber < 50 else {
         printColor("Could not connect to VPN!", .red)
         exit(1)
     }
@@ -253,6 +279,7 @@ func waitForVPNConnected(attemptNumber: Int = 1) throws {
 }
 
 func connectToVPN() throws {
+    printColor("Checking VPN connection...")
     if try isVPNConnected() {
         return
     }
@@ -262,15 +289,19 @@ func connectToVPN() throws {
 }
 
 // MARK: Script
-try gcloudAuth()
-let (vmName, vmUrl) = try getVmInfo()
-try connectToVPN()
+do {
+    try gcloudAuth()
+    let vmUrl = try startVM()
+    try connectToVPN()
 
-let httpsVmUrl = "https://\(vmUrl)"
-if promptYesWithTimeout("Open Chrome to your VM page [\(httpsVmUrl)]?") {
-    try shell("open -a \"Google Chrome\" \"\(httpsVmUrl)\"")
-} else {
-    printColor("Not opening Chrome.")
+    let httpsVmUrl = "https://\(vmUrl)"
+    if promptYesWithTimeout("Open Chrome to your VM page [\(httpsVmUrl)]?") {
+        try shell("open -a \"Google Chrome\" \"\(httpsVmUrl)\"")
+    } else {
+        printColor("Not opening Chrome.")
+    }
+
+    replaceProcessWithInteractiveSSH(host: vmUrl, remoteCommand: "cd development/Etsyweb/")
+} catch {
+    printColor("\(error)", .red)
 }
-
-replaceProcessWithInteractiveSSH(host: vmUrl, remoteCommand: "cd development/Etsyweb/")
