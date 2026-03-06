@@ -141,6 +141,43 @@ func promptYes(_ text: String, color: ShellTextColor = .yellow) -> Bool {
     return true
 }
 
+func promptYesWithTimeout(
+    _ text: String, 
+    timeout: TimeInterval = 3.0, 
+    color: ShellTextColor = .yellow
+) -> Bool {
+
+
+    let semaphore = DispatchSemaphore(value: 0)
+    var userInput: String?
+
+    printColor(text, terminator: " ", color)
+    printColor("Press y/Y to accept, any other key to skip. You have \(timeout) seconds to respond.", terminator: " ", color)
+    fflush(stdout) // Ensure prompt prints immediately
+
+    // 1. Read input on a background thread
+    DispatchQueue.global().async {
+        userInput = readLine()
+        semaphore.signal() // Signal that input was received
+    }
+
+    // 2. Wait for input or timeout
+    let result = semaphore.wait(timeout: .now() + timeout)
+
+    if result == .timedOut {
+        // Clear the input line
+        print("")
+        return false
+    }
+
+    guard userInput == "y" || userInput == "Y" else {
+        return false
+    }
+
+    return true
+
+}
+
 
 // MARK: funcs
 func gcloudAuth(attemptNumber: Int = 1) throws {
@@ -229,8 +266,11 @@ try gcloudAuth()
 let (vmName, vmUrl) = try getVmInfo()
 try connectToVPN()
 
-if promptYes("Open Chrome to your VM page?") {
-    try shell("open -a \"Google Chrome\" \"https://\(vmUrl)\"")
+let httpsVmUrl = "https://\(vmUrl)"
+if promptYesWithTimeout("Open Chrome to your VM page [\(httpsVmUrl)]?") {
+    try shell("open -a \"Google Chrome\" \"\(httpsVmUrl)\"")
+} else {
+    printColor("Not opening Chrome.")
 }
 
 replaceProcessWithInteractiveSSH(host: vmUrl, remoteCommand: "cd development/Etsyweb/")
